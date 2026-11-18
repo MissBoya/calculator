@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Calculator</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg:#f4f1e8; --text:#4a4a48; --muted:#9a978c; --panel:#ebe7da; --line:#d9d4c3;
+    --num:#e1dfd8; --num-t:#4a4a48; --op:#d9d2b6; --op-t:#5b5640; --ac:#f6c933; --ac-t:#3a2f05; --err:#b3412f;
+  }
+  html[data-theme="dark"] {
+    color-scheme: dark;
+    --bg:#0b0b0b; --text:#eeeeea; --muted:#8d8a80; --panel:#161615; --line:#2a2a28;
+    --num:#1c1c1b; --num-t:#e8e6df; --op:#d2cbae; --op-t:#2e2a1a; --ac:#f4c430; --ac-t:#2a2204; --err:#ff8a73;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; margin:0; }
+  body {
+    background:var(--bg); color:var(--text);
+    font-family:"Google Sans","Product Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex; justify-content:center;
+  }
+  .app {
+    position:relative; width:min(100%,420px); height:100dvh;
+    display:flex; flex-direction:column;
+    padding:max(12px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom));
+  }
+  header { display:flex; justify-content:space-between; position:relative; }
+  .icon {
+    width:44px; height:44px; border:0; border-radius:50%; background:none; color:var(--muted);
+    display:grid; place-items:center; cursor:pointer;
+  }
+  .icon:hover { background:var(--panel); }
+  .icon svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .icon svg .f { fill:currentColor; stroke:none; }
+  .display {
+    flex:1; min-height:0; display:flex; flex-direction:column; justify-content:flex-end;
+    align-items:flex-end; text-align:right; padding:0 8px 18px; overflow:hidden;
+  }
+  #expr { font-weight:400; line-height:1.1; overflow-wrap:anywhere; max-width:100%; }
+  #result { min-height:56px; margin-top:8px; font-size:44px; color:var(--muted); line-height:1.2; overflow-wrap:anywhere; }
+  #result.err { color:var(--err); font-size:24px; }
+  .keys {
+    width:min(100%, calc((100dvh - 230px) * .78)); margin:0 auto;
+    display:grid; grid-template-columns:repeat(4,1fr); gap:10px;
+  }
+  .keys button {
+    aspect-ratio:1; border:0; border-radius:50%; font:inherit; font-size:clamp(22px,7vw,32px);
+    background:var(--num); color:var(--num-t); cursor:pointer; display:grid; place-items:center;
+    transition:transform .08s ease, filter .15s ease;
+  }
+  .keys button:active { transform:scale(.92); filter:brightness(1.12); }
+  .keys button.op { background:var(--op); color:var(--op-t); }
+  .keys button.ac { background:var(--ac); color:var(--ac-t); }
+  .keys svg { width:30px; height:30px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  button:focus-visible { outline:3px solid var(--text); outline-offset:2px; }
+  .menu {
+    position:absolute; right:0; top:46px; z-index:5; background:var(--panel); border:1px solid var(--line);
+    border-radius:16px; padding:6px; min-width:170px; box-shadow:0 12px 30px rgba(0,0,0,.25);
+  }
+  .menu button, .hist .clear {
+    display:block; width:100%; text-align:left; border:0; background:none; color:var(--text);
+    font:inherit; font-size:16px; padding:12px 14px; border-radius:10px; cursor:pointer;
+  }
+  .menu button:hover, .hist .clear:hover { background:var(--line); }
+  .hist {
+    position:absolute; inset:0 0 auto 0; z-index:4; background:var(--bg);
+    height:min(62%,520px); padding:max(12px,env(safe-area-inset-top)) 16px 12px;
+    display:flex; flex-direction:column; border-bottom:1px solid var(--line);
+  }
+  .hist h2 { font-size:18px; font-weight:500; margin:8px 8px 12px; }
+  .hist ul { list-style:none; margin:0; padding:0; overflow:auto; flex:1; }
+  .hist li button {
+    width:100%; border:0; background:none; color:var(--text); font:inherit; text-align:right;
+    padding:10px 8px; border-bottom:1px solid var(--line); cursor:pointer;
+  }
+  .hist li small { display:block; color:var(--muted); font-size:15px; overflow-wrap:anywhere; }
+  .hist li span { font-size:24px; overflow-wrap:anywhere; }
+  .hist .empty { color:var(--muted); padding:24px 8px; text-align:center; }
+  [hidden] { display:none !important; }
+  @media (prefers-reduced-motion:reduce) { .keys button { transition:none; } }
+</style>
+</head>
+<body>
+<main class="app" aria-label="Calculator">
+  <header>
+    <button class="icon" id="histBtn" aria-label="History">
+      <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>
+    </button>
+    <button class="icon" id="menuBtn" aria-label="More options" aria-haspopup="true">
+      <svg viewBox="0 0 24 24"><circle class="f" cx="12" cy="5" r="1.8"/><circle class="f" cx="12" cy="12" r="1.8"/><circle class="f" cx="12" cy="19" r="1.8"/></svg>
+    </button>
+    <div class="menu" id="menu" hidden>
+      <button id="themeBtn">Dark theme</button>
+      <button id="clearHistBtn">Clear history</button>
+    </div>
+  </header>
+
+  <section class="display" aria-live="polite">
+    <div id="expr">0</div>
+    <div id="result"></div>
+  </section>
+
+  <div class="keys" id="keys"></div>
+
+  <section class="hist" id="hist" hidden aria-label="History">
+    <h2>History</h2>
+    <ul id="histList"></ul>
+    <button class="clear" id="histClose">Close</button>
+  </section>
+</main>
+
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const OPS = '+−×÷';
+  const BACK = '<svg viewBox="0 0 24 24"><path d="M21 5H9l-6 7 6 7h12z"/><path d="m12 9 5 6m0-6-5 6"/></svg>';
+  const layout = [
+    ['AC','AC','ac'], ['()','( )','op'], ['%','%','op'], ['÷','÷','op'],
+    ['7','7',''], ['8','8',''], ['9','9',''], ['×','×','op'],
+    ['4','4',''], ['5','5',''], ['6','6',''], ['−','−','op'],
+    ['1','1',''], ['2','2',''], ['3','3',''], ['+','+','op'],
+    ['0','0',''], ['.','.',''], ['⌫',BACK,''], ['=','=','ac']
+  ];
+  const labels = { 'AC':'All clear','()':'Parentheses','%':'Percent','÷':'Divide','×':'Multiply','−':'Subtract','+':'Add','.':'Decimal point','⌫':'Backspace','=':'Equals' };
+
+  let expr = '';          // exactly what the person typed, e.g. 89+25
+  let evaluated = false;  // true right after pressing =
+  let lastLine = '';      // "89+25 =" shown under a finished result
+  let msg = '';           // error message
+  let history = [];
+
+  /*EVAL_START*/
+  function evalExpr(s) {
+    s = s.replace(/[+−×÷(]+$/, '');
+    const open = (s.match(/\(/g) || []).length - (s.match(/\)/g) || []).length;
+    s += ')'.repeat(Math.max(0, open));
+    const t = s.match(/\d+\.?\d*|\.\d+|[+−×÷()%]/g) || [];
+    let i = 0;
+    const fail = m => { throw new Error(m); };
+
+    function sum() {
+      let v = term()[0];
+      while (t[i] === '+' || t[i] === '−') {
+        const op = t[i++];
+        const [r, pct] = term();
+        const x = pct ? v * r : r;          // 50 + 10%  ->  50 + 5
+        v = op === '+' ? v + x : v - x;
+      }
+      return v;
+    }
+    function term() {
+      let [v, pct] = factor();
+      while (t[i] === '×' || t[i] === '÷' || t[i] === '(') {
+        const op = t[i] === '(' ? '×' : t[i++];
+        const [r] = factor();
+        pct = false;
+        if (op === '÷') { if (r === 0) fail('div0'); v /= r; } else v *= r;
+      }
+      return [v, pct];
+    }
+    function factor() {
+      if (t[i] === '−') { i++; const [v, p] = factor(); return [-v, p]; }
+      if (t[i] === '+') { i++; return factor(); }
+      let v, pct = false;
+      if (t[i] === '(') { i++; v = sum(); if (t[i] !== ')') fail('fmt'); i++; }
+      else if (t[i] !== undefined && /^[\d.]/.test(t[i])) v = parseFloat(t[i++]);
+      else fail('fmt');
+      while (t[i] === '%') { i++; v /= 100; pct = true; }
+      return [v, pct];
+    }
+    const v = sum();
+    if (i < t.length || !isFinite(v)) fail('fmt');
+    return parseFloat(v.toPrecision(12));
+  }
+  /*EVAL_END*/
+
+  const fmtNum = n => {
+    const [a, b] = n.split('.');
+    return a.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (b !== undefined ? '.' + b : '');
+  };
+  const pretty = s => s.replace(/\d+\.?\d*|\.\d+/g, fmtNum);
+  const hasMath = s => /[+−×÷()%]/.test(s.slice(1));
+  const countOpen = () => (expr.match(/\(/g) || []).length - (expr.match(/\)/g) || []).length;
+
+  function press(k) {
+    const last = expr.slice(-1);
+    const numEnd = /[\d)%]/.test(last);
+    msg = '';
+
+    if (k === 'AC') { expr = ''; evaluated = false; return; }
+    if (k === '=') return equals();
+    if (k === '⌫') { evaluated = false; expr = expr.slice(0, -1); return; }
+
+    if (/^\d$/.test(k)) {
+      if (evaluated) { expr = ''; evaluated = false; }
+      if (/[)%]$/.test(expr)) expr += '×';
+      const cur = expr.match(/[\d.]+$/);
+      if (cur && cur[0] === '0') expr = expr.slice(0, -1);
+      if (cur && cur[0].replace('.', '').length >= 15) return;
+      expr += k; return;
+    }
+    if (k === '.') {
+      if (evaluated) { expr = ''; evaluated = false; }
+      const cur = expr.match(/[\d.]+$/);
+      if (cur && cur[0].includes('.')) return;
+      if (!cur) { if (/[)%]$/.test(expr)) expr += '×'; expr += '0'; }
+      expr += '.'; return;
+    }
+    if (OPS.includes(k)) {
+      evaluated = false;
+      if (!expr) { if (k === '−') expr = '−'; return; }
+      if (last === '(') { if (k === '−') expr += k; return; }
+      if (OPS.includes(last)) {
+        if (expr.length === 1 || expr.slice(-2, -1) === '(') return;
+        expr = expr.slice(0, -1) + k; return;
+      }
+      expr += k; return;
+    }
+    if (k === '(') {
+      evaluated = false;
+      if (/[\d.)%]/.test(last)) expr += '×';
+      expr += '('; return;
+    }
+    if (k === ')') {
+      if (countOpen() > 0 && /[\d.)%]/.test(last)) { evaluated = false; expr += ')'; }
+      return;
+    }
+    if (k === '()') return press(countOpen() > 0 && /[\d.)%]/.test(last) ? ')' : '(');
+    if (k === '%') { if (numEnd) { evaluated = false; expr += '%'; } return; }
+  }
+
+  function equals() {
+    if (!expr || evaluated || !hasMath(expr)) return;
+    try {
+      const v = evalExpr(expr);
+      const r = String(v).replace('-', '−');
+      history.unshift({ e: expr, r });
+      history = history.slice(0, 50);
+      save('calc-history', JSON.stringify(history));
+      lastLine = pretty(expr) + ' =';
+      expr = r; evaluated = true;
+    } catch (e) {
+      msg = e.message === 'div0' ? "Can't divide by 0" : 'Format error';
+    }
+  }
+
+  function render() {
+    const ex = $('expr'), res = $('result');
+    const text = expr ? pretty(expr) : '0';
+    ex.textContent = text;
+    const n = text.length;
+    ex.style.fontSize = (n > 22 ? 26 : n > 16 ? 34 : n > 11 ? 44 : n > 7 ? 54 : 64) + 'px';
+    res.className = '';
+    if (msg) { res.textContent = msg; res.className = 'err'; return; }
+    if (evaluated) { res.textContent = lastLine; return; }
+    let preview = '';
+    if (expr && hasMath(expr)) {
+      try { preview = pretty(String(evalExpr(expr)).replace('-', '−')); } catch (e) {}
+    }
+    res.textContent = preview;
+  }
+
+  // ----- keys -----
+  const keys = $('keys');
+  layout.forEach(([k, label, cls]) => {
+    const b = document.createElement('button');
+    b.className = cls; b.dataset.k = k; b.innerHTML = label;
+    if (labels[k]) b.setAttribute('aria-label', labels[k]);
+    keys.appendChild(b);
+  });
+  keys.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    press(b.dataset.k); render();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const map = { '*':'×', x:'×', X:'×', '/':'÷', '-':'−', '+':'+', '(':'(', ')':')', Enter:'=', '=':'=',
+                  Backspace:'⌫', Escape:'AC', Delete:'AC', '%':'%', ',':'.', '.':'.' };
+    const k = /^\d$/.test(e.key) ? e.key : map[e.key];
+    if (!k) return;
+    e.preventDefault(); press(k); render();
+  });
+
+  // ----- history, menu, theme -----
+  function save(key, val) { try { localStorage.setItem(key, val); } catch (e) {} }
+  function load(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+
+  function renderHistory() {
+    const ul = $('histList'); ul.innerHTML = '';
+    if (!history.length) {
+      const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'No calculations yet';
+      ul.appendChild(li); return;
+    }
+    history.forEach(h => {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      const s = document.createElement('small'); s.textContent = pretty(h.e) + ' =';
+      const r = document.createElement('span'); r.textContent = pretty(h.r);
+      b.append(s, r);
+      b.addEventListener('click', () => { expr = h.r; evaluated = true; lastLine = pretty(h.e) + ' ='; msg = ''; $('hist').hidden = true; render(); });
+      li.appendChild(b); ul.appendChild(li);
+    });
+  }
+  $('histBtn').addEventListener('click', () => { renderHistory(); $('hist').hidden = false; $('menu').hidden = true; });
+  $('histClose').addEventListener('click', () => { $('hist').hidden = true; });
+  $('menuBtn').addEventListener('click', e => { e.stopPropagation(); $('menu').hidden = !$('menu').hidden; });
+  document.addEventListener('click', e => { if (!e.target.closest('.menu')) $('menu').hidden = true; });
+  $('clearHistBtn').addEventListener('click', () => { history = []; save('calc-history', '[]'); $('menu').hidden = true; });
+
+  function setTheme(t) {
+    document.documentElement.dataset.theme = t;
+    $('themeBtn').textContent = t === 'dark' ? 'Light theme' : 'Dark theme';
+    save('calc-theme', t);
+  }
+  $('themeBtn').addEventListener('click', () => {
+    setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+    $('menu').hidden = true;
+  });
+  setTheme(load('calc-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+  try { history = JSON.parse(load('calc-history') || '[]'); } catch (e) { history = []; }
+
+  render();
+})();
+</script>
+</body>
+</html>
